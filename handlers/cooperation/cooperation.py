@@ -14,8 +14,8 @@ async def start_cooperation_application(callback_query: types.CallbackQuery, sta
     await state.clear()
 
     await callback_query.message.answer(
-        "📩 Пожалуйста, опишите ваше предложение по сотрудничеству.\n"
-        "Мы внимательно рассмотрим каждую заявку. После отправки вам ответят в ближайшее время.",
+        "📩 Опишите ваше предложение по сотрудничеству в свободной форме.\n"
+        "Мы внимательно рассмотрим обращение и ответим в ближайшее время.",
         reply_markup=make_row_inline_keyboards(cancel_cooperation)
     )
 
@@ -32,13 +32,13 @@ async def receive_cooperation_text(message: types.Message, state: FSMContext):
     )
 
     if create_requests:
-        await message.answer("✅ Спасибо за ваше обращение!\n"
-                             "Ваша заявка успешно отправлена. Мы свяжемся с вами в ближайшее время.")
+        await message.answer("✅ Спасибо за обращение!\n"
+                             "Ваша заявка отправлена. Мы свяжемся с вами как можно скорее.")
         await state.clear()
 
 
 @router.callback_query(F.data == 'cancel_cooperation')
 async def cancel_cooperation_request(callback: types.CallbackQuery, state: FSMContext):
     await state.clear()
-    await callback.message.edit_text("❌ Заявка на сотрудничество была отменена.")
+    await callback.message.edit_text("❌ Заявка на сотрудничество отменена.")
     await callback.answer()

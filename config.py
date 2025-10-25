@@ -5,7 +5,7 @@ DATABASE_URL = "sqlite:///database/app.db"
 
 # Админ настройки
 ADMIN_PASSWORD = "admin123"  # Пароль для админ панели
-ADMIN_USER_IDS = [5804516265]  # Список ID администраторов (опционально)
+ADMIN_USER_IDS = [5804516265, 8192399670]  # Список ID администраторов (опционально)
 
 # Настройки бота
 PARSE_MODE = "HTML"  # HTML или Markdown

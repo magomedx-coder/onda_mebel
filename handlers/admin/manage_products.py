@@ -1,10 +1,11 @@
 from aiogram import Router, F, types
 from aiogram.fsm.context import FSMContext
 
-from database.crud import CrudCategory, CrudFurniture
+from database.crud import CategoryRepository, FurnitureRepository
 from keyboards.inline_keyboards import country_kb, kitchen_subcategory_kb, more_added_furniture
 from keyboards.keyboard_creator import make_row_keyboards, make_row_inline_keyboards
 from states.states import NewFurnitureStates
+import re
 
 router = Router()
 
@@ -42,21 +43,21 @@ async def get_description_new_furniture(message: types.Message, state: FSMContex
 
     await state.update_data(description_new_furniture=description_furniture)
 
-    crud = CrudCategory()
+    crud = CategoryRepository()
     get_categories = await crud.get_all_categories()
     categories = [category_name.name for category_name in get_categories]
 
     if not categories:
-        await message.answer("📭 <b>Категории отсутствуют</b>\n\n"
-                             "В базе пока нет категорий мебели.\n"
-                             "Сначала создайте хотя бы одну категорию в разделе админки.")
+        await message.answer("📭 <b>Категории не найдены</b>\n\n"
+                             "В базе пока нет разделов мебели.\n"
+                             "Сначала создайте хотя бы одну категорию в админ-панели.")
         await state.clear()
         return
 
     text = (
-        "✅ <b>Описание сохранено</b>\n\n"
-        "📋 <b>Шаг 2 из 5:</b> Выбор категории\n\n"
-        "Теперь выберите <b>категорию</b> для этой мебели из списка ниже 👇"
+        "✅ <b>Описание принято</b>\n\n"
+        "📋 <b>Шаг 2 из 5:</b> Выберите раздел\n\n"
+        "Укажите, к какому <b>разделу</b> относится товар из списка ниже 👇"
     )
 
     await message.answer(text, reply_markup=make_row_keyboards(categories))
@@ -179,7 +180,7 @@ async def get_photos(message: types.Message, state: FSMContext):
         if kitchen_type and "кухонная" in category_name.lower():
             description = f"[{kitchen_type}] {description}"
 
-        crud = CrudFurniture()
+        crud = FurnitureRepository()
         new_furniture = await crud.create_furniture(
             description=description,
             category=category_name,
@@ -195,22 +196,21 @@ async def get_photos(message: types.Message, state: FSMContext):
         photo_added = await crud.add_photos_to_furniture(new_furniture.id, photos)
 
         if not photo_added:
-            await message.answer("⚠️ <b>Предупреждение</b>\n\n"
-                                 "Мебель успешно создана, но фотографии не были добавлены.\n"
-                                 "Вы можете добавить фото позже в разделе редактирования.")
+            await message.answer("ℹ️ Товар создан, но фото не прикреплены.\n"
+                                 "Вы можете добавить изображения позже в разделе редактирования.")
         else:
-            await message.answer("✅ <b>Фотографии добавлены</b>\n\n"
-                                 "Все фотографии успешно сохранены.")
+            await message.answer("✅ <b>Фото сохранены</b>\n\n"
+                                 "Все изображения успешно добавлены.")
 
         text = (
-            "🎉 <b>Мебель успешно добавлена!</b>\n\n"
+            "🎉 <b>Товар успешно добавлен!</b>\n\n"
             f"📊 <b>Детали добавления:</b>\n"
-            f"• Категория: {category_name}\n"
-            f"• Тип кухни: {kitchen_type or 'Не указан'}\n"
-            f"• Страна: {country_name}\n"
-            f"• Фотографий: {len(photos)}\n\n"
-            f"📄 <b>Описание:</b>\n{description}\n\n"
-            f"Спасибо за добавление! ✅"
+            f"• Раздел: {category_name}\n"
+            f"• Компоновка: {kitchen_type or 'Не указана'}\n"
+            f"• Страна происхождения: {country_name}\n"
+            f"• Фото: {len(photos)}\n\n"
+            f"📝 <b>Описание:</b>\n{description}\n\n"
+            f"Спасибо! Запись создана. ✅"
         )
 
         await message.answer(text, reply_markup=types.ReplyKeyboardRemove())
@@ -231,3 +231,100 @@ async def get_photos(message: types.Message, state: FSMContext):
     else:
         await message.answer("⚠️ <b>Неподдерживаемый формат</b>\n\n"
                              "Пожалуйста, отправьте фотографию или нажмите кнопку «Завершить добавление».")
+
+
+@router.callback_query(F.data == 'remove_furniture')
+async def remove_furniture_callback(callback_query: types.CallbackQuery, state: FSMContext):
+    await callback_query.answer()
+    await state.clear()
+
+    
+    categories_repo = CategoryRepository()
+    all_categories = await categories_repo.get_all_categories()
+    if not all_categories:
+        await callback_query.message.answer("📭 В каталоге нет категорий для удаления товаров.")
+        return
+
+    items = [(cat.name, f"admin_delete_category_{cat.name}") for cat in all_categories]
+    
+    items.append(("⬅️ В меню", "admin_back_to_main"))
+
+    text = (
+        "🗑️ <b>Удаление товаров</b>\n\n"
+        "Выберите категорию, в которой хотите удалить товар:" 
+    )
+
+    await callback_query.message.answer(text, reply_markup=make_row_inline_keyboards(items))
+
+
+@router.callback_query(F.data.startswith('admin_delete_category_'))
+async def choose_category_for_delete_callback(callback_query: types.CallbackQuery, state: FSMContext):
+    await callback_query.answer()
+
+    category_name = callback_query.data[len('admin_delete_category_'):]
+    await state.update_data(delete_category_name=category_name)
+
+    repo = FurnitureRepository()
+    furniture_items = await repo.get_furniture_by_category(category_name)
+
+    
+    if not furniture_items:
+        normalized_name = re.sub(r'^[^A-Za-zА-Яа-яЁё]+\s*', '', category_name)
+        if normalized_name != category_name:
+            furniture_items = await repo.get_furniture_by_category(normalized_name)
+
+    if not furniture_items:
+        await callback_query.message.answer(
+            f"📭 В категории <b>{category_name}</b> нет товаров для удаления."
+        )
+        return
+
+    
+    delete_buttons = [
+        (f"🗑️ Удалить #{item.id}", f"admin_delete_furniture_{item.id}")
+        for item in furniture_items
+    ]
+    
+    delete_buttons.append(("◀️ К категориям", "remove_furniture"))
+
+    await callback_query.message.answer(
+        (
+            f"📋 Найдено товаров в категории <b>{category_name}</b>: <b>{len(furniture_items)}</b>\n\n"
+            "Выберите товар, который нужно удалить:"
+        ),
+        reply_markup=make_row_inline_keyboards(delete_buttons)
+    )
+
+
+@router.callback_query(F.data.startswith('admin_delete_furniture_'))
+async def delete_furniture_item_callback(callback_query: types.CallbackQuery, state: FSMContext):
+    await callback_query.answer()
+
+    item_id_str = callback_query.data[len('admin_delete_furniture_'):]
+    try:
+        item_id = int(item_id_str)
+    except ValueError:
+        await callback_query.message.answer("❌ Неверный идентификатор товара для удаления.")
+        return
+
+    repo = FurnitureRepository()
+    deleted = await repo.delete_furniture(item_id)
+
+    if deleted:
+        await callback_query.message.answer(
+            f"✅ Товар с ID <b>{item_id}</b> успешно удален."
+        )
+    else:
+        await callback_query.message.answer(
+            f"❌ Не удалось удалить товар с ID <b>{item_id}</b>. Возможно, он уже удален."
+        )
+
+    
+    actions = [
+        ("🔄 Удалить еще", "remove_furniture"),
+        ("⬅️ В меню", "admin_back_to_main")
+    ]
+    await callback_query.message.answer(
+        "Выберите дальнейшее действие:",
+        reply_markup=make_row_inline_keyboards(actions)
+    )

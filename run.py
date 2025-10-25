@@ -20,7 +20,7 @@ logging.basicConfig(
 
 
 async def main():
-    # Инициализация базы данных - создание всех таблиц
+   
     logging.info("Инициализация базы данных...")
     async with async_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -29,31 +29,20 @@ async def main():
     bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
 
-    # Подключение всех роутеров
+   
     dp.include_router(router)
 
-    # Удаление всех старый вебхуков
+   
     await bot(DeleteWebhook(drop_pending_updates=True))
 
-    # Подключение базовой менюшки со всеми командами
+    
     await bot.set_my_commands(commands=commands, scope=BotCommandScopeAllPrivateChats())
 
     # Запуск бота
     print("✅ Бот запущен")
     await dp.start_polling(bot, skip_updates=True)
 
-
-
-
-
-
 if __name__ == '__main__':
-    try:
-        asyncio.run(main())
-    except TelegramBadRequest as e:
-        logging.error(f"Telegram API error: {e}")
-    except KeyboardInterrupt:
-        logging.info("Bot stopped by user")
-    except Exception as e:
-        logging.critical(f"Критическая ошибка: {e}", exc_info=True)
-        ыв
+    asyncio.run(main())
+    
+#ку

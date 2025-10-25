@@ -8,7 +8,7 @@ from database.engine import AsyncSessionLocal
 from database.models import User, Cooperation, Category, Furniture, FurniturePhoto
 
 
-class UserCrud:
+class UserRepository:
     def __init__(self):
         self.session = AsyncSessionLocal
 
@@ -86,18 +86,20 @@ class UserCrud:
             return False
 
 
-class CrudCooperation:
+class CooperationRepository:
     def __init__(self):
         self.session = AsyncSessionLocal
 
     async def create_request(self,
                              telegram_id: int,
-                             username: str,
+                             username: Optional[str],
                              text: str):
+        
+        safe_username = username or f"id_{telegram_id}"
         async with self.session() as session:
             new_request = Cooperation(
                 telegram_id=telegram_id,
-                username=username,
+                username=safe_username,
                 text_requests=text
             )
 
@@ -133,7 +135,7 @@ class CrudCooperation:
             return result.rowcount > 0
 
 
-class CrudCategory:
+class CategoryRepository:
     def __init__(self):
         self.session = AsyncSessionLocal
 
@@ -194,7 +196,7 @@ class CrudCategory:
                 return []
 
 
-class CrudFurniture:
+class FurnitureRepository:
     def __init__(self):
         self.session = AsyncSessionLocal
 
@@ -263,6 +265,42 @@ class CrudFurniture:
             except SQLAlchemyError as exc:
                 logging.exception("DB error in get_furniture_by_category_and_country: %s", exc)
 
+    async def get_furniture_by_category(self, category_name: str) -> List[Furniture]:
+        async with self.session() as session:
+            try:
+                stmt = select(Furniture).where(Furniture.category_name == category_name).order_by(Furniture.id)
+                result = await session.execute(stmt)
+                furniture = result.scalars().all()
+                return furniture or []
+            except SQLAlchemyError as exc:
+                logging.exception("DB error in get_furniture_by_category: %s", exc)
+                return []
+
+    async def delete_furniture(self, furniture_id: int) -> bool:
+        async with self.session() as session:
+            try:
+                stmt = select(Furniture).where(Furniture.id == furniture_id)
+                result = await session.execute(stmt)
+                furniture = result.scalar_one_or_none()
+
+                if not furniture:
+                    return False
+
+                await session.delete(furniture)
+                await session.commit()
+                logging.info("Удалена мебель id=%s", furniture_id)
+                return True
+
+            except SQLAlchemyError as exc:
+                await session.rollback()
+                logging.exception("DB error in delete_furniture: %s", exc)
+                return False
+
+            except Exception as exc:
+                await session.rollback()
+                logging.exception("Unexpected error in delete_furniture: %s", exc)
+                return False
+
     async def add_photos_to_furniture(self, furniture_id: int, photo_file_ids: List[str]) -> bool:
         if not photo_file_ids:
             return False
@@ -303,3 +341,8 @@ class CrudFurniture:
             except SQLAlchemyError as exc:
                 logging.exception("DB error in get_furniture_photos: %s", exc)
                 return []
+# Обратная совместимость имён, чтобы существующие импорты продолжали работать
+UserCrud = UserRepository
+CrudCooperation = CooperationRepository
+CrudCategory = CategoryRepository
+CrudFurniture = FurnitureRepository

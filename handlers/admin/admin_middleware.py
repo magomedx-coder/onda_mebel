@@ -15,9 +15,9 @@ async def new_category_furniture_callback(callback_query: types.CallbackQuery, s
     await state.clear()
 
     prompt = (
-        "🆕 <b>Создание новой категории мебели</b>\n\n"
+        "🆕 <b>Создание категории</b>\n\n"
         "Введите название категории.\n\n"
-        "🔹 Совет: добавьте эмодзи в начале названия — это делает меню заметнее.\n\n"
+        "🔹 Подсказка: добавьте эмодзи в начале — меню станет нагляднее.\n\n"
         "Примеры:\n"
         "<code>🛏️ Спальная мебель</code>\n"
         "<code>🍳 Кухонная мебель</code>\n"
@@ -43,22 +43,22 @@ async def name_category_furniture(message: types.Message, state: FSMContext):
     name_category = (message.text or "").strip()
 
     if not name_category:
-        await message.answer("⚠️ Название не может быть пустым. Пожалуйста, введите название категории.")
+        await message.answer("⚠️ Название не может быть пустым. Введите корректное название категории.")
         return
 
     crud = CrudCategory()
     exists = await crud.check_category_by_name(name_category)
     if exists:
-        await message.answer("⚠️ Категория с таким именем уже существует в базе!")
+        await message.answer("⚠️ Категория с таким именем уже существует.")
         return
 
     await state.update_data(name_category=name_category)
 
     prompt = (
         f"✅ Название сохранено: <b>{name_category}</b>\n\n"
-        "Теперь введите <b>краткое описание</b> для категории — одно-две фразы.\n"
-        "Описание поможет покупателям быстрее понять, что внутри категории.\n\n"
-        "Если хотите отменить — нажмите «Отменить»."
+        "Добавьте <b>краткое описание</b> — одна-две фразы.\n"
+        "Описание помогает быстрее понять содержание категории.\n\n"
+        "Чтобы отменить — нажмите «Отменить»."
     )
 
     await message.answer(text=prompt, reply_markup=make_row_inline_keyboards(build_cancel_kb))
@@ -70,7 +70,7 @@ async def description_category_furniture(message: types.Message, state: FSMConte
     description_category = (message.text or "").strip()
 
     if not description_category:
-        await message.answer("⚠️ Описание не может быть пустым. Пожалуйста, введите описание категории.")
+        await message.answer("⚠️ Описание не может быть пустым. Введите описание категории.")
         return
 
     await state.update_data(description_category=description_category)
@@ -80,10 +80,10 @@ async def description_category_furniture(message: types.Message, state: FSMConte
     description = description_category
 
     preview = (
-        "🎯 <b>Предпросмотр новой категории</b>\n\n"
+        "🎯 <b>Предпросмотр категории</b>\n\n"
         f"{name}\n"
         f"<i>{description}</i>\n\n"
-        "Проверьте, всё ли верно. Когда будете готовы — нажмите «Сохранить», "
+        "Проверьте данные. Для сохранения нажмите «Сохранить»,\n"
         "или используйте «Отменить», чтобы прервать создание."
     )
 
@@ -108,13 +108,13 @@ async def save_category(callback_query: types.CallbackQuery, state: FSMContext):
     add_category = await crud.create_category(name=name_category, description=description_category)
 
     if add_category:
-        await callback_query.answer(text='🎉 Успешно: категория сохранена в базе', show_alert=True)
+        await callback_query.answer(text='🎉 Категория сохранена', show_alert=True)
         try:
             await callback_query.message.edit_text("✅ Категория добавлена")
         except Exception:
             await callback_query.message.answer("✅ Категория добавлена")
     else:
-        await callback_query.message.answer("❌ Произошла ошибка при сохранении. Обратитесь к администратору.")
+        await callback_query.message.answer("❌ Ошибка при сохранении. Обратитесь к администратору.")
 
     await state.clear()
 
@@ -125,7 +125,7 @@ async def cancel_category_callback(callback_query: types.CallbackQuery, state: F
     await state.clear()
 
     try:
-        await callback_query.message.answer("Операция создания категории отменена.", reply_markup=None)
+        await callback_query.message.answer("Создание категории отменено.", reply_markup=None)
     except Exception as e:
         try:
             await callback_query.message.answer(f"Не удалось отправить сообщение после отмены: {e}")

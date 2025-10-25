@@ -2,7 +2,7 @@ import os
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncAttrs
 
-# Формируем абсолютный путь к базе данных
+
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # Корень проекта
 DB_PATH = os.path.join(BASE_DIR, 'database', 'database.db')
 

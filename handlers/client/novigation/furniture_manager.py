@@ -4,21 +4,21 @@ from aiogram import Router, F, types
 from aiogram.fsm.context import FSMContext
 
 
-from database.crud import CrudFurniture
+from database.crud import FurnitureRepository
 from keyboards.inline_keyboards import contry_of_origin_kb, kitchen_subcategory_inline_kb
 from keyboards.keyboard_creator import make_row_inline_keyboards
 
 router = Router()
 
 FURNITURE_NAMES = {
-    'sleep_furniture': '🛏️ Спальная мебель',
-    'kitchen_furniture': '🍳 Кухонная мебель',
-    'soft_furniture': '🛋️ Мягкая мебель',
-    'tables_chairs': '📚 Столы и стулья',
-    'cabinets_commodes': '📺 Тумбы и комоды',
-    'bed_furniture': '🛏️ Кровати',
-    'mattresses': '🛏️️ Матрасы',
-    'wardrobes': '🚪 Шкафы'
+    'sleep_furniture': '🛌 Мебель для спальни',
+    'kitchen_furniture': '🍽️ Мебель кухни',
+    'soft_furniture': '🛋️ Диваны и кресла',
+    'tables_chairs': '🍽️ Обеденные группы',
+    'cabinets_commodes': '🧰 Комоды и тумбы',
+    'bed_furniture': '🛏️ Каркасы кроватей',
+    'mattresses': '🧴 Матрасы и топперы',
+    'wardrobes': '🚪 Шкафы-купе'
 }
 
 KITCHEN_SUBCATEGORIES = {
@@ -48,26 +48,47 @@ def extract_kitchen_type(description: str) -> tuple:
 
 
 async def show_furniture_list(message: types.Message, category_name: str, country: str = "🇷🇺 Россия", kitchen_type: str = None, page: int = 0):
-    crud = CrudFurniture()
+    crud = FurnitureRepository()
 
-    if "кухонная" in category_name.lower():
+    # Сохраняем оригинальное имя категории и нормализованное (без ведущих эмодзи/символов)
+    original_category_name = category_name
+    normalized_category_name = re.sub(r'^[^A-Za-zА-Яа-яЁё]+\s*', '', original_category_name)
+
+    # Определяем, относится ли категория к кухне (по оригинальному или нормализованному названию)
+    is_kitchen = bool(re.search(r"кух", original_category_name.lower()) or re.search(r"кух", normalized_category_name.lower()))
+
+    # Для кухонных категорий по умолчанию страна — Россия
+    if is_kitchen:
         country = "🇷🇺 Россия"
 
+    # Последовательно пытаемся получить товары по разным вариантам имени категории
     furniture_list = await crud.get_furniture_by_category_and_country(
-        category_name=category_name,
+        category_name=original_category_name,
         country=country
     )
+
+    if not furniture_list:
+        furniture_list = await crud.get_furniture_by_category_and_country(
+            category_name=normalized_category_name,
+            country=country
+        )
+
+    # Fallback: если ничего не нашли по стране, пробуем по категории без фильтра страны
+    if not furniture_list:
+        furniture_list = await crud.get_furniture_by_category(original_category_name)
+
+    if not furniture_list:
+        furniture_list = await crud.get_furniture_by_category(normalized_category_name)
 
     if kitchen_type and furniture_list:
         furniture_list = [
             furniture for furniture in furniture_list
-            if f"[{kitchen_type}]" in furniture.description
+            if f"[{kitchen_type}]" in (furniture.description or "")
         ]
 
     if not furniture_list:
-        await message.answer("📭 К сожалению, по данной категории пока нет добавленной мебели.\n\n"
-                             "Но не переживайте! Наш ассортимент постоянно пополняется новыми моделями.\n"
-                             "Рекомендуем периодически возвращаться и смотреть обновления.")
+        await message.answer("📭 По данной категории пока нет доступных товаров.\n\n"
+                             "Ассортимент регулярно обновляется — заглядывайте позже.")
         return
 
     total_items = len(furniture_list)
@@ -77,15 +98,15 @@ async def show_furniture_list(message: types.Message, category_name: str, countr
 
     for furniture in paginated_furniture:
         displayed_kitchen_type = ""
-        if "кухонная" in category_name.lower():
-            kt, clean_description = extract_kitchen_type(furniture.description)
+        if is_kitchen:
+            kt, clean_description = extract_kitchen_type(furniture.description or "")
             if kt:
-                displayed_kitchen_type = f"🍳 <b>Тип кухни:</b> {kt}\n"
+                displayed_kitchen_type = f"🍳 <b>Компоновка кухни:</b> {kt}\n"
         else:
-            clean_description = furniture.description
+            clean_description = furniture.description or ""
 
         furniture_text = (
-            f"🪑 <b>{category_name}</b>\n"
+            f"🪑 <b>{original_category_name}</b>\n"
             f"{'─' * 30}\n"
             f"{clean_description}\n\n"
             f"{displayed_kitchen_type}"
@@ -109,7 +130,7 @@ async def show_furniture_list(message: types.Message, category_name: str, countr
                 for photo in photos[:10]:
                     await message.answer_photo(photo.file_id)
         else:
-            await message.answer("📷 Фотографии отсутствуют")
+            await message.answer("📷 Фото пока нет")
 
         await message.answer(furniture_text, disable_web_page_preview=True)
 
@@ -130,10 +151,9 @@ async def show_furniture_list(message: types.Message, category_name: str, countr
     else:
         page_info = ""
 
-    # Отправляем сообщение типо товары отправлены 10 из 14 и тд
     await message.answer(
         f"{page_info}"
-        f"Показано <b>{len(paginated_furniture)}</b> из <b>{total_items}</b> товаров в категории",
+        f"Отображено <b>{len(paginated_furniture)}</b> из <b>{total_items}</b> позиций в этой категории",
         reply_markup=reply_markup
     )
 
@@ -204,8 +224,14 @@ async def origin_callback(callback_query: types.CallbackQuery, state: FSMContext
 async def more_furniture_handler(message: types.Message, state: FSMContext):
     user_data = await state.get_data()
 
-    furniture_type = user_data.get('type_furniture', 'sleep_furniture')
-    category_name = FURNITURE_NAMES.get(furniture_type, 'Спальная мебель')
+    # Если пользователь выбрал динамическую категорию, используем сохраненное имя
+    selected_category_name = user_data.get('selected_category_name')
+    if selected_category_name:
+        category_name = selected_category_name
+    else:
+        furniture_type = user_data.get('type_furniture', 'sleep_furniture')
+        category_name = FURNITURE_NAMES.get(furniture_type, 'Спальная мебель')
+
     origin_type = user_data.get('origin_type')
     origin_name = ORIGIN_NAMES.get(origin_type, '🇷🇺 Россия') if origin_type else "🇷🇺 Россия"
     kitchen_type = user_data.get('selected_kitchen_type')
@@ -215,3 +241,20 @@ async def more_furniture_handler(message: types.Message, state: FSMContext):
     await state.update_data(current_page=new_page)
 
     await show_furniture_list(message, category_name, origin_name, kitchen_type, new_page)
+
+
+@router.callback_query(F.data.startswith("open_category_"))
+async def open_dynamic_category(callback_query: types.CallbackQuery, state: FSMContext):
+    # Извлекаем имя категории из callback_data
+    category_full = callback_query.data[len("open_category_"):]
+    category_name = (category_full or "").strip()
+
+    # Сохраняем состояние и сбрасываем пагинацию
+    await state.update_data(type_furniture="dynamic_category")
+    await state.update_data(selected_category_name=category_name)
+    await state.update_data(current_page=0)
+
+    # Показываем список мебели для выбранной категории (со встроенной нормализацией)
+    await show_furniture_list(callback_query.message, category_name)
+
+    await callback_query.answer()

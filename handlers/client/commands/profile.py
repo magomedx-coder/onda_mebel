@@ -22,16 +22,16 @@ async def profile_command(message: types.Message):
     is_admin = "✅ Да" if user.is_admin else "❌ Нет"
 
     profile_text = (
-        f"<b>👤 Профиль пользователя</b> {username}\n"
+        f"<b>👤 Данные пользователя</b> {username}\n"
         f"<code>{'━' * 30}</code>\n"
-        f"<b>🧾 Основное</b>\n"
-        f"├ 🆔 ID: <code>{user_id}</code>\n"
-        f"├ 📱 Telegram ID: <code>{telegram_id}</code>\n"
-        f"├ 👤 Username: {username}\n"
+        f"<b>📄 Информация</b>\n"
+        f"├ 🆔 Внутренний ID: <code>{user_id}</code>\n"
+        f"├ 📱 Telegram: <code>{telegram_id}</code>\n"
+        f"├ 👤 Никнейм: {username}\n"
         f"├ 🧑 Имя: {firstname}\n"
         f"├ 👨‍👩‍👧 Фамилия: {lastname}\n"
-        f"├ 🗓 Зарегистрирован: {reg_date}\n"
-        f"└ 🛡 Админ: {is_admin}\n"
+        f"├ 🗓 Дата регистрации: {reg_date}\n"
+        f"└ 🛡 Администратор: {is_admin}\n"
     )
 
     await message.answer(profile_text)
