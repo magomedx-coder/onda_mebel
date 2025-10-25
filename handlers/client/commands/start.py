@@ -8,6 +8,7 @@ from keyboards.inline_keyboards import start_kb
 from keyboards.keyboard_creator import make_row_inline_keyboards
 
 from database.crud import UserCrud
+from config import ADMIN_USER_IDS
 
 router = Router()
 
@@ -41,17 +42,23 @@ async def start(message: types.Message, state: FSMContext):
     crud = UserCrud()
 
     try:
+        # Определяем, должен ли пользователь быть админом по списку ADMIN_USER_IDS
+        should_be_admin = telegram_id in ADMIN_USER_IDS
+
+        # Пытаемся добавить пользователя. Если существует, метод вернет None.
         added_user = await crud.add_user(
             telegram_id=telegram_id,
             username=message.from_user.username,
             first_name=message.from_user.first_name,
             last_name=message.from_user.last_name,
-            is_admin=False,  # по умолчанию
+            is_admin=should_be_admin,
         )
         if added_user:
-            logging.info("✅ Пользователь %s успешно зарегистрирован.", telegram_id)
+            logging.info("✅ Пользователь %s успешно зарегистрирован. Admin=%s", telegram_id, should_be_admin)
         else:
-            logging.info("👤 Пользователь %s уже существует или не был создан.", telegram_id)
+            # Пользователь уже есть — синхронизируем admin-статус с конфигом
+            await crud.set_admin_status(telegram_id, should_be_admin)
+            logging.info("👤 Пользователь %s уже существует. Admin статус синхронизирован: %s", telegram_id, should_be_admin)
 
     except IntegrityError as ie:
         logging.exception("❌ IntegrityError при добавлении пользователя %s: %s", telegram_id, ie)
@@ -61,13 +68,9 @@ async def start(message: types.Message, state: FSMContext):
 
     user = await crud.get_user_by_telegram_id(message.from_user.id)
 
-    if user.is_admin:
+    if user and user.is_admin:
         keyboard = start_kb + [("⚙️Настройки бота", 'settings_bot')]
-        await message.answer(
-            text=welcome_text,
-            reply_markup=make_row_inline_keyboards(keyboard))
 
-    else:
-        await message.answer(
-            text=welcome_text,
-            reply_markup=make_row_inline_keyboards(keyboard))
+    await message.answer(
+        text=welcome_text,
+        reply_markup=make_row_inline_keyboards(keyboard))

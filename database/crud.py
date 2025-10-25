@@ -63,6 +63,28 @@ class UserCrud:
             logging.exception("Неожиданная ошибка при add_user: %s", exc)
             return None
 
+    # Новый метод: обновить статус администратора пользователя
+    async def set_admin_status(self, telegram_id: int, is_admin: bool) -> bool:
+        try:
+            async with self.session() as session:
+                stmt = select(User).where(User.telegram_id == telegram_id)
+                result = await session.execute(stmt)
+                user = result.scalar_one_or_none()
+                if not user:
+                    logging.warning("Не найден пользователь для обновления admin-статуса: %s", telegram_id)
+                    return False
+
+                user.is_admin = bool(is_admin)
+                await session.commit()
+                logging.info("Обновлен статус admin у пользователя %s -> %s", telegram_id, is_admin)
+                return True
+        except SQLAlchemyError as exc:
+            logging.exception("DB error в set_admin_status для %s: %s", telegram_id, exc)
+            return False
+        except Exception as exc:
+            logging.exception("Unexpected error в set_admin_status: %s", exc)
+            return False
+
 
 class CrudCooperation:
     def __init__(self):

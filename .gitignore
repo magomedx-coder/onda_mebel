@@ -77,3 +77,18 @@ logs/
 # Project specific (удали если не нужно)
 mebel_bot-1/
 mebel_bot/
+
+# Config files with sensitive data
+config.py
+config_*.py
+*config*.py
+configuration.py
+
+# Environment specific configs
+config/
+configs/
+configuration/
+
+# Local settings
+local_settings.py
+settings_local.py

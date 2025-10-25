@@ -11,6 +11,7 @@ from aiogram.types import BotCommandScopeAllPrivateChats
 from handlers import router
 from keyboards.keyboard_manager import commands
 from config import TOKEN
+from database.engine import async_engine, Base
 
 logging.basicConfig(
     level=logging.INFO,
@@ -19,7 +20,13 @@ logging.basicConfig(
 
 
 async def main():
-    bot = Bot(token=TOKEN.TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    # Инициализация базы данных - создание всех таблиц
+    logging.info("Инициализация базы данных...")
+    async with async_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    logging.info("База данных инициализирована успешно")
+    
+    bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
 
     # Подключение всех роутеров
@@ -32,7 +39,12 @@ async def main():
     await bot.set_my_commands(commands=commands, scope=BotCommandScopeAllPrivateChats())
 
     # Запуск бота
+    print("✅ Бот запущен")
     await dp.start_polling(bot, skip_updates=True)
+
+
+
+
 
 
 if __name__ == '__main__':
@@ -44,3 +56,4 @@ if __name__ == '__main__':
         logging.info("Bot stopped by user")
     except Exception as e:
         logging.critical(f"Критическая ошибка: {e}", exc_info=True)
+        ыв
